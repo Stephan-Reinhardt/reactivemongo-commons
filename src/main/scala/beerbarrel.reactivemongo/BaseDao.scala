@@ -1,5 +1,6 @@
 package beerbarrel.reactivemongo
 
+import beerbarrel.play.datetime.JodaImplicits
 import play.modules.reactivemongo.ReactiveMongoApi
 import reactivemongo.api.Cursor
 import reactivemongo.api.bson.collection.BSONCollection
@@ -7,7 +8,7 @@ import reactivemongo.api.bson.{BSONBoolean, BSONDocument, BSONDocumentReader, BS
 
 import scala.concurrent.{ExecutionContext, Future}
 
-abstract class BaseDao[T](val reactiveMongoApi: ReactiveMongoApi)(implicit val ec: ExecutionContext) {
+abstract class BaseDao[T](val reactiveMongoApi: ReactiveMongoApi)(implicit val ec: ExecutionContext) extends JodaImplicits {
 
   protected val collectionName: String
 
@@ -31,21 +32,34 @@ abstract class BaseDao[T](val reactiveMongoApi: ReactiveMongoApi)(implicit val e
     collection.flatMap(_.find(query).one[T])
   }
 
-  protected def findByBoolean(field: String, value: Boolean)(implicit reader: BSONDocumentReader[T]): Future[Seq[T]] = {
-    findByInternal(BSONDocument(field -> BSONBoolean(value)))
+  def findOneBy(field: String, id: Any)(implicit reader: BSONDocumentReader[T]): Future[Option[T]] = {
+    val query = buildQuery(field, id)
+    findOneByInternal(query)
+  }
+
+  private def buildQuery(field: String, value: Any): BSONDocument = {
+    value match {
+      case v: String => BSONDocument(field -> v)
+      case v: Int => BSONDocument(field -> v)
+      case v: Long => BSONDocument(field -> v)
+      case v: Double => BSONDocument(field -> v)
+      case v: BigDecimal => BSONDocument(field -> v)
+      case v: Float => BSONDocument(field -> v)
+      case v: Boolean => BSONDocument(field -> v)
+      case _ => throw new IllegalStateException(s"sType of ${value.getClass.toString} is not mapped.")
+    }
+  }
+
+  def findBy(field: String, id: Any)(implicit reader: BSONDocumentReader[T]): Future[Seq[T]] = {
+    val query = buildQuery(field, id)
+    findByInternal(query)
   }
 
   def getAll()(implicit reader: BSONDocumentReader[T]): Future[Seq[T]] = {
     findByInternal(BSONDocument.empty)
   }
 
-  protected def findByString(field: String, id: String)(implicit reader: BSONDocumentReader[T]): Future[Seq[T]] = {
-    // TODO this could be handled in a better way i think.
-    val query = BSONDocument(field -> id)
-    findByInternal(query)
-  }
-
-  protected def findById(id: String)(implicit reader: BSONDocumentReader[T]): Future[Option[T]] = {
+  def findById(id: String)(implicit reader: BSONDocumentReader[T]): Future[Option[T]] = {
     findOneByInternal(idQuery(id))
   }
 
