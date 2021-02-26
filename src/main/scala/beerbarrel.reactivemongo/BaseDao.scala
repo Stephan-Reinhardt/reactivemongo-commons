@@ -28,7 +28,7 @@ abstract class BaseDao[T](val reactiveMongoApi: ReactiveMongoApi)(implicit val e
     )
 
   def all()(implicit reader: BSONDocumentReader[T]): Future[Seq[T]] =
-    findByInternal(BSONDocument.empty)
+    findByInternal(BSONDocument.empty)(reader)
 
   def delete(id: String)(implicit reader: BSONDocumentReader[T]): Future[Boolean] =
     collection.flatMap(_.delete.one(idQuery(id)).map(_.n >= 1))
